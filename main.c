@@ -7,7 +7,7 @@
 #include "usbdrv.h"
 
 uchar recv_buf[8];
-uchar counter = 0;
+void dataReceived(void);
 
 /*
 typedef struct usbRequest{
@@ -112,6 +112,7 @@ uchar usbFunctionWrite(uchar *data, uchar len)
     // host to device
     if(len==8){
         memcpy(recv_buf, data, len);
+        dataReceived();
         return 1;
     }else{
         return -1; // STALL
@@ -133,7 +134,6 @@ uchar usbFunctionRead(uchar *data, uchar len)
     if(len==8){
         //memset(data, 0, len);
         memcpy(data, recv_buf, len);
-        data[7] = counter++;
         return len;
     }else{
         return -1; // STALL
@@ -154,24 +154,45 @@ void usbFunctionWriteOut(uchar *data, uchar len)
 }
 */
 
-static void hardwareInit(void)
+void dataReceived(void)
 {
     uchar i;
-    USB_CFG_IOPORT = (uchar)~((1<<USB_CFG_DMINUS_BIT)|(1<<USB_CFG_DPLUS_BIT));
 
-    usbDeviceDisconnect();
-    for(i=0; i<10; i++){
-        wdt_reset();
-        _delay_ms(10);
+    // recv_buf[0,1,2,3,4] => LED PORTB 1,2,3,4,5
+    DDRB = 0x3E; // 0011 1110
+    for(i=0; i<5; i++){
+        if(recv_buf[i]){
+            PORTB |= (1<<(i+1));
+        }else{
+            PORTB &= ~(1<<(i+1));
+        }
     }
-    usbDeviceConnect();
+
+    // recv_buf[5,6,7]
+    // TODO tone
 }
 
 int main(void)
 {
+    uchar i;
     wdt_enable(WDTO_1S);
-    hardwareInit();
+
+    // beep
+    DDRB = 0x01;
+    for(i=0; i<10; i++){
+        PORTB = 0x01;
+        _delay_ms(1);
+        PORTB = 0x00;
+        _delay_ms(1);
+    }
+
     usbInit();
+    usbDeviceDisconnect();
+    for(i=0; i<150; i++){
+        wdt_reset();
+        _delay_ms(2);
+    }
+    usbDeviceConnect();
 
     sei();
     for(;;){

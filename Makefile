@@ -1,6 +1,6 @@
 ## General Flags
 PROJECT = hidled
-MCU = atmega88p
+MCU = atmega328p
 F_CPU = 20000000UL
 #F_CPU = 12000000UL
 TARGET = $(PROJECT).elf
@@ -33,10 +33,10 @@ HEX_EEPROM_FLAGS += --change-section-lma .eeprom=0 --no-change-warnings
 USBDRV=./v-usb/usbdrv
 
 ## Include Directories
-INCLUDES = -I"." -I"$(USBDRV)" 
+INCLUDES = -I"." -I"$(USBDRV)"
 
 ## Objects that must be built in order to link
-OBJECTS = main.o usbdrvasm.o oddebug.o usbdrv.o 
+OBJECTS = main.o usbdrvasm.o oddebug.o usbdrv.o
 
 ## Objects explicitly added by the user
 LINKONLYOBJECTS = 
@@ -77,3 +77,7 @@ clean:
 
 ## Other dependencies
 -include $(shell mkdir dep 2>/dev/null) $(wildcard dep/*)
+
+## Write
+flash: $(PROJECT).hex
+	avrdude -C /Applications/Arduino.app/Contents/Resources/Java/hardware/tools/avr/etc/avrdude.conf -c usbasp -p m328p -U flash:w:hidled.hex
