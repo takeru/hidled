@@ -1,4 +1,5 @@
 require "libusb"
+require "thread"
 
 module HIDLED
   class Host
@@ -11,7 +12,7 @@ module HIDLED
     USBRQ_HID_SET_IDLE      = 0x0a
     USBRQ_HID_SET_PROTOCOL  = 0x0b
 
-    def open_handle
+    def initialize
       usb = LIBUSB::Context.new
 
       devices = usb.devices(:idVendor => 0x16c0, :idProduct => 0x05dc)
@@ -19,9 +20,15 @@ module HIDLED
         raise "device not found."
       end
 
-      device = devices.first
-      device.open_interface(0) do |handle|
-        yield(handle)
+      @device = devices.first
+    end
+
+    def open_handle
+      @semaphore ||= Mutex.new
+      @semaphore.synchronize do
+        @device.open_interface(0) do |handle|
+          yield(handle)
+        end
       end
     end
 
@@ -50,18 +57,6 @@ module HIDLED
           :dataIn        => 8
         )
         received_bytes.unpack('C*')
-      end
-    end
-
-    def demo_send_and_recv
-      16.times do |n|
-        data = [n+0,n+1,n+2,n+3,n+4,n+5,n+6,n+7]
-
-        sent_byte_size = send_data(data)
-        puts "sent_byte_size = #{sent_byte_size}"
-
-        data = recv_data
-        puts "received_bytes = #{received_bytes.unpack('C*').inspect}"
       end
     end
   end
