@@ -69,7 +69,9 @@ if $0 == File.basename(__FILE__)
     puts host.recv_data.join(",")
     usage = false
   elsif ARGV[0]=="-s"
-    data = ARGV[1].split(",").map{|s| s.strip.to_i }
+    data = ARGV[1].split(",").map{|s|
+      Integer(s.strip)
+    }
     if data.size==8
       host.send_data(data)
       usage = false
@@ -79,6 +81,6 @@ if $0 == File.basename(__FILE__)
   if usage
     puts "usage: "
     puts "  ruby hidled_host.rb -r"
-    puts "  ruby hidled_host.rb -s 1,0,1,0,0,0,0,0"
+    puts "  ruby hidled_host.rb -s 0x33,0x3f,0xff,0x88,0x86,0x66,0x80,0x00"
   end
 end

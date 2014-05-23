@@ -154,22 +154,91 @@ void usbFunctionWriteOut(uchar *data, uchar len)
 }
 */
 
+uchar led_duty_portc[6] = {0x00,0x00,0x00,0x00,0x00,0x00};
+uchar led_duty_portb[6] = {0x00,0x00,0x00,0x00,0x00,0x00};
+uchar led_duty_portd7   = 0x00;
 void dataReceived(void)
 {
     uchar i;
-
-    // recv_buf[0,1,2,3,4] => LED PORTB 1,2,3,4,5
-    DDRB = 0x3E; // 0011 1110
-    for(i=0; i<5; i++){
-        if(recv_buf[i]){
-            PORTB |= (1<<(i+1));
+    for(i=0; i<6; i++){
+        uchar v = recv_buf[i/2];
+        if(i%2==0){
+            v = (v & 0xF0) >> 4;
         }else{
-            PORTB &= ~(1<<(i+1));
+            v = (v & 0x0F);
+        }
+        led_duty_portc[5-i] = v*v;
+    }
+    for(i=0; i<6; i++){
+        uchar v = recv_buf[3+i/2];
+        if(i%2==0){
+            v = (v & 0xF0) >> 4;
+        }else{
+            v = (v & 0x0F);
+        }
+        led_duty_portb[5-i] = v*v;
+    }
+    led_duty_portd7 = recv_buf[6] >> 4;
+}
+
+void updateLED(uchar counter)
+{
+    uchar i;
+    // LED PORTB 0,1,2 red
+    //           3,4,5 yellow
+    //     PORTC 0,1,2 green
+    //           3,4,5 blue
+    //     PORTD 7     white
+
+    // recv_buf[0] => PORTC 5,4
+    // recv_buf[1] => PORTC 3,2
+    // recv_buf[2] => PORTC 1,0
+    uint8_t portc = 0;
+    for(i=0; i<6; i++){
+        if(counter < led_duty_portc[i]){
+          portc |= _BV(i);
         }
     }
+    PORTC = portc;
 
-    // recv_buf[5,6,7]
-    // TODO tone
+    // recv_buf[3] => LED PORTB 5,4
+    // recv_buf[4] => LED PORTB 3,2
+    // recv_buf[5] => LED PORTB 1,0
+    uint8_t portb = 0;
+    for(i=0; i<6; i++){
+        if(counter < led_duty_portb[i]){
+          portb |= _BV(i);
+        }
+    }
+    PORTB = portb;
+
+    // recv_buf[6] => LED PORTD 7
+    if(counter < led_duty_portd7){
+      PORTD |=   _BV(7);
+    }else{
+      PORTD &= ~ _BV(7);
+    }
+
+    /*
+    // SLOW
+    volatile uint8_t *ports[3] = {&PORTC, &PORTB, &PORTD};
+    for(i=0; i<13; i++){
+        uchar v = recv_buf[i/2];
+        if(i%2==0){
+            v = (v & 0xF0) >> 4;
+        }else{
+            v = (v & 0x0F);
+        }
+        volatile uint8_t *port = ports[i/6];
+        uchar bit = 5-(i%6);
+        if(12<=i){ bit = 7; }
+        if(counter%256 < v*v){
+          *port |=   _BV(bit);
+        }else{
+          *port &= ~ _BV(bit);
+        }
+    }
+    */
 }
 
 int main(void)
@@ -178,13 +247,17 @@ int main(void)
     wdt_enable(WDTO_1S);
 
     // beep
-    DDRB = 0x01;
+    DDRD = _BV(PORTD5);
     for(i=0; i<10; i++){
-        PORTB = 0x01;
+        PORTD |= _BV(PORTD5);
         _delay_ms(1);
-        PORTB = 0x00;
+        PORTD &= ~ _BV(PORTD5);
         _delay_ms(1);
     }
+
+    DDRB = 0x3F; // 0011 1111
+    DDRC = 0x3F; // 0011 1111
+    DDRD = 0x80; // 1000 0000
 
     usbInit();
     usbDeviceDisconnect();
@@ -195,9 +268,10 @@ int main(void)
     usbDeviceConnect();
 
     sei();
-    for(;;){
+    for(i=0;;i++){
         wdt_reset();
         usbPoll();
+        updateLED(i);
     }
     return 0;
 }
