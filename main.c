@@ -132,7 +132,6 @@ uchar usbFunctionRead(uchar *data, uchar len)
 {
     // device to host
     if(len==8){
-        //memset(data, 0, len);
         memcpy(data, recv_buf, len);
         return len;
     }else{
@@ -241,24 +240,72 @@ void updateLED(uchar counter)
     */
 }
 
+volatile int beep_counter = 0;
+
+void beep(int hz, int ms)
+{
+  if(38<=hz && hz<39062){
+    beep_counter = ms;
+    char cs = 0; // (x<<CS02)|(x<<CS01)|(x<<CS00)
+    if(hz<152){
+      cs = 0b101; // 1/1024
+      OCR0A = F_CPU/(hz*2*1024)-1;
+    }else if(hz<610){
+      cs = 0b100; // 1/256
+      OCR0A = F_CPU/(hz*2* 256)-1;
+    }else if(hz<4882){
+      cs = 0b011; // 1/64
+      OCR0A = F_CPU/(hz*2*  64)-1;
+    }else if(hz<39062){
+      cs = 0b010; // 1/8
+      OCR0A = F_CPU/(hz*2*   8)-1;
+    }
+    // beep
+    TCCR0A = (0<<COM0A1)|(0<<COM0A0)|(0<<COM0B1)|(1<<COM0B0)|(1<<WGM01)|(0<<WGM00);
+    TCCR0B = (0<<WGM02)|cs;
+  }else{
+    TCCR0A = 0;
+    TCCR0B = 0;
+  }
+}
+
+ISR(TIMER2_COMPA_vect)
+{
+  if(0<beep_counter){
+    beep_counter--;
+  }else if(beep_counter==0){
+    beep(0,0);
+  }
+}
+
+void init_beep(){
+    // timer2 (beep off timer)
+    TCCR2A = (0<<COM2A1)|(0<<COM2A0)|(0<<COM2B1)|(0<<COM2B0)|(1<<WGM21)|(0<<WGM20);
+    TCCR2B = (0<<WGM22)|(1<<CS22)|(0<<CS21)|(0<<CS20); // 0b100:clk/64
+    TIMSK2 = (1<<OCIE2A);
+    OCR2A  = 155;
+    beep_counter = 0;
+}
+
 int main(void)
 {
     uchar i;
-    wdt_enable(WDTO_1S);
-
-    // beep
-    DDRD = _BV(PORTD5);
-    for(i=0; i<10; i++){
-        PORTD |= _BV(PORTD5);
-        _delay_ms(1);
-        PORTD &= ~ _BV(PORTD5);
-        _delay_ms(1);
-    }
 
     DDRB = 0x3F; // 0011 1111
     DDRC = 0x3F; // 0011 1111
-    DDRD = 0x80; // 1000 0000
+    DDRD = 0x80 | _BV(PORTD5); // 1000 0000 + OC0B
 
+    sei();
+    init_beep();
+    beep(220, 3000);
+    _delay_ms(4000);
+    beep(440, 3000);
+    _delay_ms(4000);
+    beep(880, 3000);
+    _delay_ms(4000);
+    cli();
+
+    wdt_enable(WDTO_1S);
     usbInit();
     usbDeviceDisconnect();
     for(i=0; i<150; i++){
