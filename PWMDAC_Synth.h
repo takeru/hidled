@@ -11,8 +11,28 @@
 #ifndef PWMDAC_Synth_h
 #define PWMDAC_Synth_h
 
+#if 0
 #include <Arduino.h>
 #include <wiring_private.h>
+#else
+  //compat
+  #include <string.h>
+  #include <avr/pgmspace.h>
+  #include <math.h>
+  #include <avr/io.h>
+  #include <avr/interrupt.h>
+  #define byte unsigned char
+  #define boolean unsigned char
+  extern "C" void pinMode(uint8_t, uint8_t);
+  #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+  #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+  #define HIGH 0x1
+  #define LOW  0x0
+  #define INPUT 0x0
+  #define OUTPUT 0x1
+  #define INPUT_PULLUP 0x2
+#endif
+
 #define NumberOf(array) (sizeof(array)/sizeof((array)[0]))
 #define cbi16(sfr, bit) (_SFR_WORD(sfr) &= ~_BV(bit))
 #define sbi16(sfr, bit) (_SFR_WORD(sfr) |= _BV(bit))
@@ -246,6 +266,39 @@ extern PWMDACSynth PWM_SYNTH;
 //     3: OC2B TIMER2 - maybe used as INT1
 //
 #ifdef PWMDAC_OUTPUT_PIN
+
+//
+// Timer0 (not for arduino, for AVR)
+#if PWMDAC_OUTPUT_PIN == 6 || PWMDAC_OUTPUT_PIN == 5
+void PWMDACSynth::setup() {
+  pinMode(PWMDAC_OUTPUT_PIN,OUTPUT);
+  // No prescaling
+  sbi (TCCR0B, CS00);
+  cbi (TCCR0B, CS01);
+  cbi (TCCR0B, CS02);
+  // Phase-correct PWM
+  sbi (TCCR0A, WGM00);
+  cbi (TCCR0A, WGM01);
+  cbi (TCCR0B, WGM02);
+#if PWMDAC_OUTPUT_PIN == 6
+  cbi (TCCR0A, COM0A0);
+  sbi (TCCR0A, COM0A1);
+#else
+  cbi (TCCR0A, COM0B0);
+  sbi (TCCR0A, COM0B1);
+#endif
+  sbi(TIMSK0,TOIE0); // Enable interrupt
+}
+ISR(TIMER0_OVF_vect) {
+#if PWMDAC_OUTPUT_PIN == 6
+  OCR0A
+#else
+  OCR0B
+#endif
+  = PWMDACSynth::nextPulseWidth();
+}
+#endif // Timer0
+
 //
 // Timer1
 #if PWMDAC_OUTPUT_PIN == 9 || PWMDAC_OUTPUT_PIN == 10
