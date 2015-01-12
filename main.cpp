@@ -7,8 +7,6 @@
 extern "C" {
 #include "usbdrv.h"
 }
-#define PWMDAC_OUTPUT_PIN 5
-#include <PWMDAC_Synth.h>
 
 uchar recv_buf[8];
 void dataReceived(void);
@@ -244,26 +242,37 @@ void updateLED(uchar counter)
     */
 }
 
-void init_sound()
-{
-    uchar i,ch;
+volatile int beep_counter = 0;
 
-    sei();
-    PWM_SYNTH.setup();
-    PWM_SYNTH.getChannel(1)->wavetable = PWMDACSynth::sineWavetable;
-    PWM_SYNTH.getChannel(2)->wavetable = PWMDACSynth::squareWavetable;
-    PWM_SYNTH.getChannel(3)->wavetable = PWMDACSynth::triangleWavetable;
-    PWM_SYNTH.getChannel(4)->wavetable = PWMDACSynth::sawtoothWavetable;
-    PWM_SYNTH.getChannel(5)->wavetable = PWMDACSynth::shepardToneSineWavetable;
-    for(i=70; i<100; i++){
-      for(ch=1; ch<=5; ch++){ PWM_SYNTH.noteOn(ch,i,127); }
-      for(int j=0; j<15; j++){
-        PWM_SYNTH.updateEnvelopeStatus();
-        _delay_ms(1);
-      }
-      for(ch=1; ch<=5; ch++){ PWM_SYNTH.noteOff(ch,i,0); }
-    }
-    //cli():
+void beep(int hz, int ms)
+{
+  if(200<=hz && hz<10000){
+    beep_counter = ms;
+    TCCR1A = (0<<COM1A1)|(1<<COM1A0)|(0<<COM1B1)|(0<<COM1B0)|(0<<WGM11)|(0<<WGM10);
+    TCCR1B = (0<<WGM13)|(1<<WGM12)|(0<<CS12)|(0<<CS11)|(1<<CS10);
+    OCR1A  = F_CPU/(hz*2*1)-1;
+  }else{
+    TCCR1A = 0;
+    TCCR1B = 0;
+  }
+}
+
+ISR(TIMER2_COMPA_vect)
+{
+  if(0<beep_counter){
+    beep_counter--;
+  }else if(beep_counter==0){
+    beep(0,0);
+  }
+}
+
+void init_beep(){
+    // timer2 (beep off timer)
+    TCCR2A = (0<<COM2A1)|(0<<COM2A0)|(0<<COM2B1)|(0<<COM2B0)|(1<<WGM21)|(0<<WGM20);
+    TCCR2B = (0<<WGM22)|(1<<CS22)|(0<<CS21)|(0<<CS20); // 0b100:clk/64
+    TIMSK2 = (1<<OCIE2A);
+    OCR2A  = 155;
+    beep_counter = 0;
 }
 
 int main(void)
@@ -274,7 +283,21 @@ int main(void)
     DDRC = 0x3F; // 0011 1111
     DDRD = 0x80 | _BV(PORTD5); // 1000 0000 + OC0B
 
-    init_sound();
+    sei();
+    init_beep();
+    beep(3729, 50);
+    _delay_ms(50);
+    beep(4978, 150);
+    _delay_ms(150);
+    /*
+    beep(440, 500);
+    _delay_ms(1000);
+    beep(440, 500);
+    _delay_ms(1000);
+    beep(440, 500);
+    _delay_ms(1000);
+    beep(880, 1000);
+    */
 
     wdt_enable(WDTO_1S);
     usbInit();
@@ -282,7 +305,6 @@ int main(void)
     for(i=0; i<150; i++){
         wdt_reset();
         _delay_ms(2);
-        PWM_SYNTH.updateEnvelopeStatus();
     }
     usbDeviceConnect();
 
@@ -291,7 +313,6 @@ int main(void)
         wdt_reset();
         usbPoll();
         updateLED(i);
-        PWM_SYNTH.updateEnvelopeStatus();
     }
     return 0;
 }

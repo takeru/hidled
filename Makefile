@@ -1,3 +1,5 @@
+#AVR_PATH=/Applications/Arduino.app/Contents/Resources/Java/hardware/tools/avr/bin; PATH=$AVR_PATH:$PATH
+
 ## General Flags
 PROJECT = hidled
 MCU = atmega328p
@@ -32,14 +34,11 @@ HEX_EEPROM_FLAGS += --change-section-lma .eeprom=0 --no-change-warnings
 
 USBDRV=./v-usb/usbdrv
 
-ARDUINO_CORES_INC=/Applications/Arduino.app/Contents/Resources/Java/hardware/arduino/cores/arduino
-ARDUINO_VARIANTS_INC=/Applications/Arduino.app/Contents/Resources/Java/hardware/arduino/variants/standard
-
 ## Include Directories
-INCLUDES = -I"." -I"$(USBDRV)" -I"$(ARDUINO_CORES_INC)" -I"$(ARDUINO_VARIANTS_INC)"
+INCLUDES = -I"." -I"$(USBDRV)"
 
 ## Objects that must be built in order to link
-OBJECTS = main.o usbdrvasm.o oddebug.o usbdrv.o PWMDAC_Synth.o wiring_digital.o
+OBJECTS = main.o usbdrvasm.o oddebug.o usbdrv.o
 
 ## Objects explicitly added by the user
 LINKONLYOBJECTS = 
@@ -59,12 +58,6 @@ oddebug.o: $(USBDRV)/oddebug.c $(CONFIG)
 
 usbdrv.o: $(USBDRV)/usbdrv.c $(CONFIG)
 	$(CC) $(INCLUDES) $(CFLAGS) -c  $<
-
-PWMDAC_Synth.o: PWMDAC_Synth.cpp $(CONFIG)
-	$(CC) $(INCLUDES) $(CFLAGS) -c $<
-
-wiring_digital.o: /Applications/Arduino.app/Contents/Resources/Java/hardware/arduino/cores/arduino/wiring_digital.c $(CONFIG)
-	$(CC) $(INCLUDES) $(CFLAGS) -c $<
 
 ##Link
 $(TARGET): $(OBJECTS)
