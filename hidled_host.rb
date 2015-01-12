@@ -62,7 +62,7 @@ module HIDLED
   end
 end
 
-if $0 == File.basename(__FILE__)
+if File.basename($0) == File.basename(__FILE__)
   usage = true
   host = HIDLED::Host.new
   if ARGV[0]=="-r"
